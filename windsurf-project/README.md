@@ -196,4 +196,4 @@ gameLoop();
 
 ## License
 
-MIT License - feel free to use this project for your own games!
+There is no license💀
