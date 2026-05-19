@@ -15,15 +15,7 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Serve static files from client/public
-app.use(express.static(path.join(__dirname, '../client/public')));
-
-// Serve the main HTML file for all non-API routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/public/index.html'));
-});
-
-// Routes
+// ===== API ROUTES FIRST (BEFORE STATIC FILES) =====
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/users', userRoutes);
@@ -40,7 +32,46 @@ app.get('/api/storage/status', (req, res) => {
   res.json(status);
 });
 
-app.listen(PORT, () => {
-  console.log(`Boblox server running on port ${PORT}`);
-  console.log(`Open http://localhost:${PORT} in your browser`);
+// ===== SERVE STATIC FILES AFTER API ROUTES =====
+// Try build first (production), fallback to public (development)
+const buildPath = path.join(__dirname, '../client/build');
+const publicPath = path.join(__dirname, '../client/public');
+
+app.use(express.static(buildPath));
+app.use(express.static(publicPath));
+
+// ===== FALLBACK TO INDEX.HTML FOR REACT ROUTER =====
+app.get('*', (req, res) => {
+  // Try build first, then public
+  const buildIndex = path.join(buildPath, 'index.html');
+  const publicIndex = path.join(publicPath, 'index.html');
+  
+  res.sendFile(buildIndex, (err) => {
+    if (err) {
+      res.sendFile(publicIndex, (err) => {
+        if (err) {
+          res.status(404).json({ error: 'index.html not found' });
+        }
+      });
+    }
+  });
 });
+
+// Initialize database and start server
+async function startServer() {
+  try {
+    console.log('Initializing database...');
+    await db.initialize();
+    console.log('Database initialized successfully');
+    
+    app.listen(PORT, () => {
+      console.log(`Boblox server running on port ${PORT}`);
+      console.log(`Open http://localhost:${PORT} in your browser`);
+    });
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
