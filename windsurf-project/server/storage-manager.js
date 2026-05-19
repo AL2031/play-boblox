@@ -28,7 +28,7 @@ class StorageManager {
 
     // Initialize permanent database
     try {
-      this.permanentDb = new sqlite3.Database(this.permanentDbPath);
+      await this.openDatabase();
       await this.initializePermanentDb();
       console.log('Permanent SSD storage initialized');
     } catch (err) {
@@ -40,8 +40,26 @@ class StorageManager {
     this.startMigrationProcess();
   }
 
+  // Open database connection
+  async openDatabase() {
+    return new Promise((resolve, reject) => {
+      this.permanentDb = new sqlite3.Database(this.permanentDbPath, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
   async initializePermanentDb() {
     return new Promise((resolve, reject) => {
+      if (!this.permanentDb) {
+        reject(new Error('Database connection not established'));
+        return;
+      }
+
       this.permanentDb.serialize(() => {
         // Users table
         this.permanentDb.run(`
@@ -107,10 +125,16 @@ class StorageManager {
             FOREIGN KEY (game_item_id) REFERENCES game_items(id)
           )
         `, (err) => {
-          if (err) reject(err);
-          else {
+          if (err) {
+            reject(err);
+          } else {
             // Seed starting game if it doesn't exist
-            this.seedStartingGame().then(() => resolve()).catch(resolve);
+            this.seedStartingGame()
+              .then(() => resolve())
+              .catch((seedErr) => {
+                console.error('Seed error:', seedErr);
+                resolve(); // Continue even if seeding fails
+              });
           }
         });
       });
@@ -119,6 +143,11 @@ class StorageManager {
 
   async seedStartingGame() {
     return new Promise((resolve, reject) => {
+      if (!this.permanentDb) {
+        reject(new Error('Database not available'));
+        return;
+      }
+
       this.permanentDb.get("SELECT id FROM games WHERE title = 'Boblox Adventure'", (err, row) => {
         if (err) {
           reject(err);
@@ -144,7 +173,7 @@ class StorageManager {
               return;
             }
 
-            const systemUserId = this.lastID;
+            const systemUserId = this.lastID || 1;
 
             // Create the starting game
             const startingGameCode = `// Boblox Adventure - Starting Game
@@ -214,7 +243,7 @@ const Game = {
     switch(type) {
       case 'easeInOut': return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
       case 'easeOut': return t * (2 - t);
-      case 'bounce': return t < 1/2.75 ? 7.5625 * t * t : t < 2/2.75 ? 7.5625 * (t -= 1.5/2.75) * t + 0.75 : t < 2.5/2.75 ? 7.5625 * (t -= 2.25/2.75) * t + 0.9375 : 7.5625 * (t -= 2.625/2.75) * t + 0.984375;
+      case 'bounce': return t < 1/2.75 ? 7.5625 * t * t : t < 2/2.75 ? 7.5625 * (t -= 1.5/2.75) * t + 0.75 : t < 2.5/2.75 ? 7.5625 * (t -= 2.25/2.75) * t + 0.9375 : 7.5625 * (t -= 2.625/2.75) * t + 0.9375;
       default: return t; // linear
     }
   },
@@ -356,7 +385,7 @@ gameLoop(0);`;
 
             this.permanentDb.run(
               "INSERT INTO games (title, description, creator_id, code, published) VALUES (?, ?, ?, ?, ?)",
-              ['Boblox Adventure', 'Welcome to Boblox! This is the starting game to help you learn how to create your own games. Use arrow keys or WASD to move and collect all coins!', systemUserId, startingGameCode, true],
+              ['Boblox Adventure', 'Welcome to Boblox! This is the starting game to help you learn how to create your own games. Use arrow keys or WASD to move and collect all coins!', systemUserId, startingGameCode, 1],
               function(err) {
                 if (err) {
                   reject(err);
@@ -372,14 +401,21 @@ gameLoop(0);`;
                   { name: 'Golden Coin', description: 'A shiny golden coin', price: 5, type: 'cosmetic' }
                 ];
 
+                let itemsAdded = 0;
                 items.forEach(item => {
                   this.permanentDb.run(
                     "INSERT INTO game_items (game_id, name, description, price, type) VALUES (?, ?, ?, ?, ?)",
-                    [gameId, item.name, item.description, item.price, item.type]
+                    [gameId, item.name, item.description, item.price, item.type],
+                    (err) => {
+                      if (!err) itemsAdded++;
+                      if (itemsAdded === items.length) {
+                        resolve();
+                      }
+                    }
                   );
                 });
 
-                resolve();
+                if (items.length === 0) resolve();
               }
             );
           }
@@ -588,14 +624,14 @@ gameLoop(0);`;
         'profile': 'SELECT id, username, email, bobux, created_at FROM users WHERE id = ?'
       },
       'game': {
-        'all': 'SELECT g.*, u.username as creator_name, (SELECT COUNT(*) FROM game_items WHERE game_id = g.id) as item_count FROM games g JOIN users u ON g.creator_id = u.id WHERE g.published = TRUE ORDER BY g.created_at DESC',
+        'all': 'SELECT g.*, u.username as creator_name, (SELECT COUNT(*) FROM game_items WHERE game_id = g.id) as item_count FROM games g JOIN users u ON g.creator_id = u.id WHERE g.published = 1',
         'byId': 'SELECT g.*, u.username as creator_name FROM games g JOIN users u ON g.creator_id = u.id WHERE g.id = ?',
         'items': 'SELECT * FROM game_items WHERE game_id = ?',
         'itemById': 'SELECT * FROM game_items WHERE id = ?',
         'userGames': 'SELECT * FROM games WHERE creator_id = ? ORDER BY created_at DESC'
       },
       'purchase': {
-        'inventory': 'SELECT ui.*, gi.name, gi.description, gi.type, g.title as game_title FROM user_inventory ui JOIN game_items gi ON ui.game_item_id = gi.id JOIN games g ON gi.game_id = g.id WHERE ui.user_id = ? ORDER BY ui.acquired_at DESC',
+        'inventory': 'SELECT ui.*, gi.name, gi.description, gi.type, g.title as game_title FROM user_inventory ui JOIN game_items gi ON ui.game_item_id = gi.id JOIN games g ON gi.game_id = g.id WHERE ui.user_id = ?',
         'history': 'SELECT p.*, gi.name as item_name, g.title as game_title FROM purchases p JOIN game_items gi ON p.game_item_id = gi.id JOIN games g ON gi.game_id = g.id WHERE p.user_id = ? ORDER BY p.purchased_at DESC'
       }
     };
