@@ -683,8 +683,8 @@ gameLoop();`,
               apiCall(`/api/games/${gameId}`),
               apiCall(`/api/games/${gameId}/items`)
             ]);
-            setGame(gameResponse);
-            setItems(Array.isArray(itemsResponse) ? itemsResponse : []);
+            setGame(gameResponse.game || gameResponse);
+            setItems(Array.isArray(itemsResponse.items) ? itemsResponse.items : []);
           } catch (err) {
             console.error('Failed to fetch game:', err);
             setItems([]);
@@ -789,7 +789,7 @@ gameLoop();`,
         const fetchGames = async () => {
           try {
             const response = await apiCall('/api/games');
-            setGames(Array.isArray(response) ? response : []);
+            setGames(Array.isArray(response.games) ? response.games : []);
           } catch (err) {
             console.error('Failed to fetch games:', err);
             setGames([]);
