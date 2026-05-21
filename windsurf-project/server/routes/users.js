@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const storage = require('../database');
-const { authenticateToken, authorizeUser } = require('./auth');
+const { authenticateToken } = require('./auth');
+const { authorizeUser } = require('../middleware');
 const { DAILY_REWARD_AMOUNT, DAILY_REWARD_COOLDOWN_HOURS } = require('../constants');
 
 // Get user profile
