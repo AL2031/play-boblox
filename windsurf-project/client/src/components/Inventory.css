@@ -1,0 +1,51 @@
+.inventory {
+  padding: 40px 20px;
+}
+
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.inventory-header h1 {
+  font-size: 36px;
+  color: white;
+}
+
+.inventory-item {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  gap: 16px;
+}
+
+.inventory-item-icon {
+  font-size: 48px;
+}
+
+.inventory-item-content h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.inventory-item-description {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.inventory-item-game {
+  color: #667eea;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.inventory-item-type {
+  color: #888;
+  font-size: 12px;
+}
