@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const storage = require('../database');
-const { authenticateToken, authorizeUser } = require('./auth');
+const { authenticateToken } = require('./auth');
+const { authorizeUser } = require('../middleware');
 const { MIGRATION_DELAY_MS } = require('../constants');
 
 // Purchase game item
